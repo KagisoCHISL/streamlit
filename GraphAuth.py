@@ -15,6 +15,8 @@ class GraphAuthentication:
         self.access_token = None
         self.auth_url = self.get_auth_url()
         self.auth_code = self.get_auth_code()
+        self.access_token = None
+        self.refr_token = None
 
     """Helper method to build auth URL"""
     def get_auth_url(self, state="12345"):
@@ -62,15 +64,35 @@ class GraphAuthentication:
         response.raise_for_status()
         self.access_token = response.json()["access_token"]
         return response.json()
+    
+    "Refreshes the token after a timeout."
+    def refresh_token(self):
+        if self.refr_token:
+            url = f'https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token'
+            data = {
+                "client_id": self.client_id,
+                "grant_type": "refresh_token",
+                "scope": "Files.ReadWrite Sites.ReadWrite.All offline_access",
+                "refresh_token": self.refr_token,
+                "client_secret": self.client_secret
+            }
+
+            response = requests.post(url=url, data=data)
+            response.raise_for_status()
+            return response.json()
+
+            
+
+
 
 
 class RedirectHandler(BaseHTTPRequestHandler):
     """HTTP handler to capture the auth code from redirect."""
     
     def do_GET(self):
-        # Parse query parameters from the URL
+        # Parse query parameters from the URL.
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        # Store the authorization code on the server object
+        # Store the authorization code on the server object.
         self.server.auth_code = params.get("code")[0] if "code" in params else None
 
         # Respond to the browser so the user knows they can close it.
