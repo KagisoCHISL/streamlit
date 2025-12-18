@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from Transform import Transformer
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 st.title("FILE TRANSFORMER")
@@ -85,8 +87,105 @@ if uploaded_file:
             stats_df.loc[col, "Out-of-Range Values"] = round(out_of_range_percentage, 1)
 
         return stats_df
+    
+def generate_chart(df: pd.DataFrame, x_var: str, y_var: list[str], plot_type: str, sort_x: bool = True) -> None:
+
+    plot_df = df.copy()
+
+
+    if np.issubdtype(plot_df[x_var].dtype, np.object_) or np.issubdtype(plot_df[x_var].dtype, np.str_):
+        try:
+            plot_df[x_var] = pd.to_datetime(plot_df[x_var])
+        except Exception:
+            pass  
+
+
+    if sort_x:
+        plot_df = plot_df.sort_values(by=x_var)
+
+    plt.figure(figsize=(10,6))
+
+    if plot_type == "line":
+        for y in y_var:
+            plt.plot(plot_df[x_var], plot_df[y], marker='o', label=y)
+        plt.xlabel(x_var)
+        plt.ylabel(", ".join(y_var))
+        plt.title("Line Plot")
+        plt.legend()
+        plt.grid(True)
+
+    elif plot_type == "bar":
+        for y in y_var:
+            plt.bar(plot_df[x_var], plot_df[y], label=y)
+        plt.xlabel(x_var)
+        plt.ylabel(", ".join(y_var))
+        plt.title("Bar Plot")
+        plt.legend()
+
+    elif plot_type == "scatter":
+        for y in y_var:
+            plt.scatter(plot_df[x_var], plot_df[y], label=y)
+        plt.xlabel(x_var)
+        plt.ylabel(", ".join(y_var))
+        plt.title("Scatter Plot")
+        plt.legend()
+        plt.grid(True)
+
+    elif plot_type == "hist":
+        for y in y_var:
+            plt.hist(plot_df[y], alpha=0.5, label=y)
+        plt.xlabel("Value")
+        plt.ylabel("Frequency")
+        plt.title("Histogram")
+        plt.legend()
+
+    elif plot_type == "box":
+        sns.boxplot(data=plot_df[y_var])
+        plt.title("Box Plot")
+
+    elif plot_type == "area":
+        plot_df.set_index(x_var)[y_var].plot.area()
+        plt.xlabel(x_var)
+        plt.ylabel(", ".join(y_var))
+        plt.title("Area Plot")
+
+    elif plot_type == "pie":
+        if len(y_var) != 1:
+            raise ValueError("Pie plot only supports a single y variable")
+        plt.pie(plot_df[y_var[0]], labels=plot_df[x_var], autopct='%1.1f%%')
+        plt.title("Pie Chart")
+
+    else:
+        raise ValueError(f"Plot type '{plot_type}' not recognized")
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
 
     stats_df = dirtiness_stats(transformer.df)
 
     st.write("### File Dirtiness Statistics")
     st.dataframe(stats_df)
+
+if st.checkbox("Show Plot of Dirtiness Statistics"):
+    st.write("Select a plot type to visualize:")
+    plot_type = st.radio(
+        "Plot Type",
+        ["bar", "line", "scatter", "hist", "box", "area", "pie"]
+    )
+    
+
+    numeric_cols = transformer.df.select_dtypes(include=np.number).columns.tolist()
+    
+    if numeric_cols:
+        x_var = st.selectbox("Select X-axis variable", numeric_cols)
+        y_vars = st.multiselect("Select Y-axis variable(s)", numeric_cols, default=numeric_cols)
+        
+        if st.button("Generate Plot"):
+            try:
+                generate_chart(transformer.df, x_var, y_vars, plot_type)
+                st.pyplot(plt.gcf()) 
+            except Exception as e:
+                st.error(f"Error generating plot: {e}")
+    else:
+        st.warning("No numeric columns available for plotting.")
