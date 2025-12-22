@@ -1,6 +1,5 @@
 import requests
 from typing import List, Dict
-import json
 
 class SharePointClient:
     def __init__(self, access_token: str):
@@ -15,13 +14,13 @@ class SharePointClient:
     def list_items(self, drive_id: str, folder_id: str = None) -> List[Dict]:
         """
         List files and folders in a drive.
-        
+
         Parameters:
             drive_id (str): The ID of the document library (drive)
             folder_id (str, optional): The ID of a specific folder. If None, lists root folder.
-        
+
         Returns:
-            List[Dict]: A list of items (files and folders) in the folder
+            List[Dict]: A list of items (files and folders) in the folder with metadata
         """
         if folder_id:
             url = f"{self.base_url}/drives/{drive_id}/items/{folder_id}/children"
@@ -34,37 +33,41 @@ class SharePointClient:
         data = response.json()
         items = data.get("value", [])
 
-        file_names = [] 
-        for item in items:
-            file_names.append(item["name"])
+        return items
 
-
-        # print(file_names)
-
-        return file_names
-    
-
-    def download_file(self, drive_id: str, file_name: str, save_path: str = None) -> None:
+    def download_file(self, drive_id: str, file_id: str) -> bytes:
         """
-        Download a file from the root of a drive.
+        Download a file from SharePoint using its file ID and return its content as bytes.
 
         Parameters:
             drive_id (str): The ID of the document library (drive)
-            file_name (str): The name of the file to download
-            save_path (str, optional): Local path to save the file. Defaults to current directory.
+            file_id (str): The ID of the file to download
+
+        Returns:
+            bytes: The content of the file
         """
-        url = f"{self.base_url}/drives/{drive_id}/root:/{file_name}:/content"
+        url = f"{self.base_url}/drives/{drive_id}/items/{file_id}/content"
         response = requests.get(url, headers=self._headers())
         response.raise_for_status()
 
-        if not save_path:
-            save_path = file_name
+        return response.content
 
-        with open(save_path, "wb") as f:
-            f.write(response.content)
+    def download_file_by_path(self, drive_id: str, file_path: str) -> bytes:
+        """
+        Download a file from SharePoint using its path and return its content as bytes.
 
-        print(f"Downloaded '{file_name}' to '{save_path}'")
+        Parameters:
+            drive_id (str): The ID of the document library (drive)
+            file_path (str): The path to the file (e.g., "folder1/folder2/file.xlsx")
 
+        Returns:
+            bytes: The content of the file
+        """
+        url = f"{self.base_url}/drives/{drive_id}/root:/{file_path}:/content"
+        response = requests.get(url, headers=self._headers())
+        response.raise_for_status()
+
+        return response.content
 
     def upload_file(self, drive_id: str, file_name: str, file_content: bytes, folder_path: str = "") -> dict:
         """
@@ -87,6 +90,3 @@ class SharePointClient:
         response = requests.put(url, headers=self._headers(), data=file_content)
         response.raise_for_status()
         return response.json()
-
-
-
