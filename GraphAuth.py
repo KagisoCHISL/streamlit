@@ -1,105 +1,34 @@
-    
-import requests                
-import webbrowser         
-import urllib      
-from urllib.parse import urlencode, urlparse, parse_qs  
-from http.server import HTTPServer, BaseHTTPRequestHandler  
+import requests
+import time
 
 class GraphAuthentication:
-
-    def __init__(self, tenant_id: str, client_id: str, client_secret: str, redirect_uri: str):
+    def __init__(self, tenant_id: str, client_id: str, client_secret: str):
         self.tenant_id = tenant_id
         self.client_id = client_id
         self.client_secret = client_secret
-        self.redirect_uri = redirect_uri
-        self.access_token = None
-        self.auth_url = self.get_auth_url()
-        self.auth_code = self.get_auth_code()
-        self.access_token = None
-        self.refr_token = None
+        self._access_token = None
+        self._expires_at = 0
 
-    """Helper method to build auth URL"""
-    def get_auth_url(self, state="12345"):
-        base_url = f'https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/authorize'
-        params = {
-            "client_id": self.client_id,
-            "response_type": "code",
-            "redirect_uri": self.redirect_uri,
-            "scope": "Files.ReadWrite Sites.ReadWrite.All offline_access",
-            "response_mode": "query",
-            "state": state
-        }
-        return f"{base_url}?{urlencode(params)}"
+    """fetches the token to navigate through the graph ecosystem including Sharepoint, not hitting the endpoint, just the one stored in memory
+       also a new token if the old one exprired, expires in around 60 min. (Might need to look into if there is a refresh token)
+    """
+    def get_token(self) -> str:
+        if not self._access_token or time.time() >= self._expires_at:
+            self._fetch_token()
+        return self._access_token
 
-    """Open browser and capture authorization code automatically"""
-    def get_auth_code(self):
-        import webbrowser
-        from http.server import HTTPServer
-
-        # Open the browser to let user sign in.
-        webbrowser.open(self.auth_url)
-
-        # Start HTTP server to listen for redirect with auth code (We need to capture this.)
-        server_address = ('localhost', 8000)  # This address must match the redirect_url even the port num.
-        server = HTTPServer(server_address, RedirectHandler)
-        print("Waiting for authorization code.")
-        server.handle_request()  # Blocks until the user authenticates and redirects.
-
-        auth_code = server.auth_code
-        print("Authorization code received:", auth_code) #needs to be removed.
-        return auth_code
-
-    """Exchange authorization code for access token."""
-    def request_token(self):
-        token_url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
+    def _fetch_token(self):
+        url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
         data = {
             "client_id": self.client_id,
-            "scope": "Files.ReadWrite Sites.ReadWrite.All offline_access",
-            "code": self.auth_code,
-            "redirect_uri": self.redirect_uri,
-            "grant_type": "authorization_code",
-            "client_secret": self.client_secret
+            "client_secret": self.client_secret,
+            "grant_type": "client_credentials",
+            "scope": "https://graph.microsoft.com/.default"
         }
-        response = requests.post(token_url, data=data)
-        response.raise_for_status()
-        self.access_token = response.json()["access_token"]
-        return response.json()
-    
-    "Refreshes the token after a timeout."
-    def refresh_token(self):
-        if self.refr_token:
-            url = f'https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token'
-            data = {
-                "client_id": self.client_id,
-                "grant_type": "refresh_token",
-                "scope": "Files.ReadWrite Sites.ReadWrite.All offline_access",
-                "refresh_token": self.refr_token,
-                "client_secret": self.client_secret
-            }
 
-            response = requests.post(url=url, data=data)
-            response.raise_for_status()
-            return response.json()
+        resp = requests.post(url, data=data)
+        resp.raise_for_status()
 
-            
-
-
-
-
-class RedirectHandler(BaseHTTPRequestHandler):
-    """HTTP handler to capture the auth code from redirect."""
-    
-    def do_GET(self):
-        # Parse query parameters from the URL.
-        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        # Store the authorization code on the server object.
-        self.server.auth_code = params.get("code")[0] if "code" in params else None
-
-        # Respond to the browser so the user knows they can close it.
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"<html><body><h1>Window can be closed..</h1></body></html>")
-
-if __name__ == "___main___":
-    print("Kagiso says Hello.")
+        token = resp.json()
+        self._access_token = token["access_token"]
+        self._expires_at = time.time() + token["expires_in"] - 60

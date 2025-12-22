@@ -1,10 +1,10 @@
 import requests
 from typing import List, Dict
-from GraphAuth import GraphAuth
+from GraphAuth import GraphAuthentication
 
 
 class SharePointClient:
-    def __init__(self, auth: GraphAuth, site_id: str, drive_id: str):
+    def __init__(self, auth: GraphAuthentication, site_id: str, drive_id: str):
         self.auth = auth
         self.site_id = site_id
         self.drive_id = drive_id
