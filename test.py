@@ -1,8 +1,7 @@
 from GraphAuth import GraphAuthentication
 import os
-import requests
-import json
 from dotenv import load_dotenv
+from SharepointClient import SharePointClient
 
 load_dotenv()
 
@@ -13,23 +12,28 @@ client_secret = os.getenv("CLIENT_SECRET")
 site_id = os.getenv("SITE_ID") 
 drive_id = os.getenv("DRIVE_ID")
 
-# Initialize authentication
+# Authenticate
 auth = GraphAuthentication(
     tenant_id=tenant_id,
     client_id=client_id,
     client_secret=client_secret
 )
 
-headers = {
-    "Authorization": f"Bearer {auth.get_token()}"
-}
+sharepoint_client = SharePointClient(auth.get_token())
 
+# List items in the drive
+file_names = sharepoint_client.list_items(drive_id=drive_id)
+print("Files in drive:", file_names)
 
-# 3️⃣ Optionally, list root items in this drive
-root_items_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children"
-root_resp = requests.get(root_items_url, headers=headers)
-root_resp.raise_for_status()
-items = root_resp.json()
+# Upload a local file
+local_file_path = "Book1.xlsx"
+with open(local_file_path, "rb") as f:
+    file_bytes = f.read()
 
-print("\nFiles and folders in 'Shared Documents' root:")
-print(json.dumps(items, indent=4))
+upload_response = sharepoint_client.upload_file(
+    drive_id=drive_id,
+    file_name="Book1.xlsx",
+    file_content=file_bytes
+)
+
+print("Uploaded file info:", upload_response.get("name"))
