@@ -235,6 +235,8 @@ if run_button:
                 status.write("Downloading file from SharePoint.")
                 input_file_bytes = client.download_file(drive_id, file_id)
 
+                #W##################################################################
+                #Windows app needs to to be used here, and return the processed bytes to be uploaded.
                 status.write("Processing file.")
                 processed_file_bytes = input_file_bytes
 
