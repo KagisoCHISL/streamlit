@@ -3,6 +3,7 @@ pandas
 numpy
 matplotlib
 seaborn
-xlsxwriter
-openpyxl 
+XlsxWriter
+openpyxl
 requests
+python-dotenv
